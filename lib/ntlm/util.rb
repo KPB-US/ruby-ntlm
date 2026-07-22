@@ -102,8 +102,31 @@ module NTLM
     end
 
     # [MS-NLMP] 3.3.2
-    def ntlm_v2_response(*)
-      raise NotImplemnetedError
+    def ntlm_v2_response(challenge_message, user, password, domain, client_challenge = nil)
+      server_challenge = challenge_message.challenge
+      target_info_raw = challenge_message.target_info ? challenge_message.send(:encode_av_pair, challenge_message.target_info) : ''
+
+      client_challenge ||= OpenSSL::Random.random_bytes(8)
+
+      timestamp = [(Time.now.to_i + 11644473600) * 10_000_000].pack('Q<')
+
+      temp = [1].pack('C') +
+            [1].pack('C') +
+            "\x00" * 6 +
+            timestamp +
+            client_challenge +
+            "\x00" * 4 +
+            target_info_raw +
+            "\x00" * 4
+
+      ntlmv2_hash = nt_v2_hash(user, password, domain)
+      nt_proof_str = OpenSSL::HMAC.digest(OpenSSL::Digest::MD5.new, ntlmv2_hash, server_challenge + temp)
+      nt_response = nt_proof_str + temp
+
+      lm_proof_str = OpenSSL::HMAC.digest(OpenSSL::Digest::MD5.new, ntlmv2_hash, server_challenge + client_challenge)
+      lm_response = lm_proof_str + client_challenge
+
+      [nt_response, lm_response]
     end
 
   end # Util
