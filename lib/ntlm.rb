@@ -18,10 +18,12 @@ module NTLM
   def self.authenticate(challenge_message, user, domain, password, options = {})
     challenge = Message::Challenge.parse(challenge_message)
 
-    opt = options.merge({
-      :ntlm_v2_session => challenge.has_flag?(:NEGOTIATE_EXTENDED_SECURITY),
-    })
-    nt_response, lm_response = Util.ntlm_v1_response(challenge.challenge, password, opt)
+    if challenge.has_flag?(:NEGOTIATE_EXTENDED_SECURITY)
+      nt_response, lm_response = Util.ntlm_v2_response(challenge, user, password, domain)
+    else
+      opt = options.merge({ :ntlm_v2_session => false })
+      nt_response, lm_response = Util.ntlm_v1_response(challenge.challenge, password, opt)
+    end
 
     Message::Authenticate.new(
       :user        => user,
